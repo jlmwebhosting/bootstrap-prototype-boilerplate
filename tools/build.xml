@@ -1,0 +1,83 @@
+<project>
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties"/>
+	<property file="build.properties" />
+	
+	<target name="increment-asset-version">
+		<var name="asset.version.next" value="0"/>
+    	<math result="asset.version.next" operand1="${asset.version}" operation="+" operand2="1" datatype="int"/>
+    	<math result="asset.version" operand1="${asset.version.next}" operation="+" operand2="0" datatype="int"/>
+	  	<replaceregexp file="${path.tools}build.properties"
+      		match="asset\.version=\d+"
+      		replace="asset\.version=${asset.version.next}"
+      		byline="true" 
+    	/>
+    	<replaceregexp match="\.\d+\.js" replace="\.${asset.version.next}\.js">
+    		<fileset dir="${path.public}" includes="**/*.html" />
+    	</replaceregexp>
+    	<replaceregexp match="\.\d+\.css" replace="\.${asset.version.next}\.css">
+    		<fileset dir="${path.public}" includes="**/*.html" />
+    	</replaceregexp>
+	</target>
+	
+	<target name="compile-less">
+		<exec executable="${exec.lessc}">
+		<arg value="${path.lib}less/style.less" />
+    	<arg value="${path.css}style.${asset.version}.css" />
+      	<arg value="-x" />
+    </exec>
+    <delete>
+      <fileset dir="${path.css}" includes="**/*.css" excludes="**/*.${asset.version}.css" />
+    </delete>
+	</target>
+	
+	<target name="compile-coffee">
+		<exec executable="${exec.coffee}">
+    	<arg value="--join" />
+    	<arg value="${path.js}coffee.combined.${asset.version}.js" />
+    	<arg value="--compile" />
+    	<arg value="${path.coffee}" />
+    </exec>
+	</target>
+	
+	<target name="combine-javascript" depends="compile-coffee">
+	  	<concat destfile="${path.js}combined.${asset.version}.js">
+	  		<fileset dir="${path.lib}js" includes="**/*.js" />
+	    	<fileset dir="${path.bootstrap}js/" includes="*.js" />
+	    	<fileset dir="${path.js}" includes="coffee.*.js" />
+	  	</concat>
+	  	<delete>
+      		<fileset dir="${path.js}" includes="**/coffee.combined*.js" />
+      		<fileset dir="${path.public}" includes="**/combined*.js" excludes="**/combined*${asset.version}.js" />
+    	</delete>
+	</target>
+	
+	<target name="minify-js" depends="combine-javascript">
+		<exec executable="${exec.uglify-js}">
+			<arg value="-nm" />
+			<arg value="-nmf" />
+			<arg value="-ns" />
+			<arg value="-o" />
+			<arg value="${path.js}combined.min.${asset.version}.js" />
+			<arg value="${path.js}combined.${asset.version}.js" />
+		</exec>
+		
+		<exec executable="${exec.uglify-js}">
+			<arg value="-b" />
+			<arg value="-o" />
+			<arg value="${path.js}combined.ugly.${asset.version}.js" />
+			<arg value="${path.js}combined.${asset.version}.js" />
+		</exec>
+		
+		<exec executable="${exec.uglify-js}">
+			<arg value="-o" />
+			<arg value="${path.js}combined.ugly.min.${asset.version}.js" />
+			<arg value="${path.js}combined.${asset.version}.js" />
+		</exec>
+	</target>
+	
+	<target name="compile-javascript" depends="compile-coffee,combine-javascript,minify-js" />
+	
+	<target name="compile-assets" depends="increment-asset-version,compile-less,compile-coffee,combine-javascript,minify-js" />
+	
+  	<target name="full" depends="compile-assets" />
+</project>
